@@ -3,11 +3,12 @@ import asyncio
 from solders.pubkey import Pubkey  # type: ignore
 from typing import TypedDict, Literal
 from decimal import Decimal
+from functools import cache
 
 from http_client import Client
 from solscan import SolScanAPI
 
-
+SOL = "So11111111111111111111111111111111111111112"
 TOKEN_PROGRAM_ID = Pubkey.from_string("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
 ASSOCIATED_TOKEN_PROGRAM_ID = Pubkey.from_string(
     "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
@@ -42,6 +43,7 @@ class Solana:
         self.rpc = RPC(rpc_url)
         self.solscan_api = SolScanAPI(solscan_api_token)
 
+    @cache
     def get_associated_token_account(self, mint: str, owner: str) -> str:
         key, _ = Pubkey.find_program_address(
             seeds=[
@@ -77,7 +79,7 @@ class Solana:
         self, transaction_hash: str, owner: str
     ) -> Transaction:
         token_actions = []
-        token_balances, sol_transfers, block_time = (
+        token_balances, sol_transfers, unknown_transfers, block_time = (
             await self.solscan_api.get_transaction_details(transaction_hash)
         )
         for token in token_balances:
@@ -100,14 +102,24 @@ class Solana:
                         / Decimal(10**decimals),
                     }
                 )
+        sol_diff = Decimal("0")
         for sol_transfer in sol_transfers:
-            sol_diff = Decimal("0")
             if sol_transfer["source"] == owner:
                 sol_diff -= Decimal(sol_transfer["amount"]) / Decimal("1000000000")
             elif sol_transfer["destination"] == owner:
                 sol_diff += Decimal(sol_transfer["amount"]) / Decimal("1000000000")
-            if sol_diff > DUST_SOL or sol_diff < -DUST_SOL:
-                token_actions.append({"token": "SOL", "amount": sol_diff})
+        for unknown in unknown_transfers:
+            if "event" in unknown:
+                for event in unknown["event"]:
+                    if (
+                        "destination" in event
+                        and "amount" in event
+                        and event["destination"]
+                        == self.get_associated_token_account(SOL, owner)
+                    ):
+                        sol_diff += Decimal(event["amount"]) / Decimal("1000000000")
+        if sol_diff > DUST_SOL or sol_diff < -DUST_SOL:
+            token_actions.append({"token": "SOL", "amount": sol_diff})
         return {
             "transaction_hash": transaction_hash,
             "token_actions": token_actions,

@@ -49,7 +49,7 @@ class SolScanAPI(Client):
 
     async def get_transaction_details(
         self, transaction_hash: str
-    ) -> tuple[list, list, int]:
+    ) -> tuple[list, list, list, int]:
         response = await self.call(
             "get",
             f"/v1.0/transaction/{transaction_hash}",
@@ -58,5 +58,6 @@ class SolScanAPI(Client):
         return (
             response["tokenBalances"] if "tokenBalances" in response else [],  # type: ignore
             response["solTransfers"] if "solTransfers" in response else [],  # type: ignore
+            response["unknownTransfers"] if "unknownTransfers" in response else [],  # type: ignore
             response["blockTime"],  # type: ignore
         )
