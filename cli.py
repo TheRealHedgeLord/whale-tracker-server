@@ -9,7 +9,13 @@ from pprint import pprint
 
 from state_manager import State, TrackedWallet
 from svm import Solana, Transaction, SPL
-from telegram import TelegramBot, generate_transaction_message, SEPARATOR
+from telegram import (
+    TelegramBot,
+    generate_transaction_message,
+    SEPARATOR,
+    TelegramMethod,
+    HELP_TEXT,
+)
 
 load_dotenv()
 
@@ -79,9 +85,6 @@ async def _track_one_wallet(
         ]
 
 
-def _all_mentioned_tokens_message() -> str: ...
-
-
 async def _get_total_balance(wallets: list[str], token: SPL) -> tuple[str, Decimal]:
     balances = await asyncio.gather(
         *[solana.get_spl_balance(wallet, token) for wallet in wallets]
@@ -132,6 +135,15 @@ async def _get_current_holding(all_wallets: dict[str, TrackedWallet]) -> str:
         ]
     )
     return SEPARATOR.join(group_reports)
+
+
+async def _process_telegram_methods(telegram_method: TelegramMethod) -> None:
+    match telegram_method["method"]:
+        case "help":
+            await bot.send_message(WHALE_TRACKER_CHAT_ID, HELP_TEXT)
+        case _:
+            ...
+    state.update_server_params(last_processed_update_id=telegram_method["update_id"])
 
 
 class CLI:
@@ -189,6 +201,15 @@ class CLI:
     async def get_associated_token_account(mint: str, owner: str) -> None:
         account = solana.get_associated_token_account(mint, owner)
         print(account)
+
+    @staticmethod
+    async def process_telegram() -> None:
+        server_params = state.get_server_params()
+        telegram_methods = await bot.get_bot_commands(
+            WHALE_TRACKER_CHAT_ID, after_id=server_params["last_processed_update_id"]
+        )
+        for telegram_method in telegram_methods:
+            await _process_telegram_methods(telegram_method)
 
 
 if __name__ == "__main__":

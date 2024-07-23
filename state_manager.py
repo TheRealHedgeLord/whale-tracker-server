@@ -10,6 +10,11 @@ class TrackedWallet(TypedDict):
     last_updated_hash: str | None
 
 
+class ServerParams(TypedDict):
+    admin_users: list[str]
+    last_processed_update_id: int
+
+
 class State:
     def __init__(self, root: str) -> None:
         self._root = root
@@ -38,3 +43,17 @@ class State:
     def track_new_wallet(self, address: str, name: str, group: str) -> None: ...
 
     def remove_wallet(self, address: str) -> None: ...
+
+    def get_server_params(self) -> ServerParams:
+        file_path = f"{self._root}/server_params.json"
+        with open(file_path, mode="r") as f:
+            server_params = json.load(f)
+        return server_params
+
+    def update_server_params(self, **kwargs) -> None:
+        file_path = f"{self._root}/server_params.json"
+        with open(file_path, mode="r") as f:
+            server_params = json.load(f)
+        server_params.update(kwargs)
+        with open(file_path, mode="w") as f:
+            json.dump(server_params, f)
