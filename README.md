@@ -17,3 +17,12 @@
 4. Install dependencies
 
     `pip install -r requirements.txt`
+
+5. Set environment variables
+
+    `nano .env`
+
+6. Create state directory
+
+    `mkdir .state`
+    `mkdir .state/tracked_wallets`

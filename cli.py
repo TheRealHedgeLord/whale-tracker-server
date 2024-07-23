@@ -29,15 +29,30 @@ def _get_message_and_timestamp(
     return message, transaction["block_time"]
 
 
+def _get_ignored_wallets(
+    address: str, wallet: TrackedWallet, all_wallets: dict[str, TrackedWallet]
+) -> list[str]:
+    ignored_wallets = []
+    for account in all_wallets:
+        if account != address and wallet["group"] == all_wallets[account]["group"]:
+            ignored_wallets.append(account)
+    return ignored_wallets
+
+
 async def _track_one_wallet(
-    address: str, wallet: TrackedWallet
+    address: str, wallet: TrackedWallet, all_wallets: dict[str, TrackedWallet]
 ) -> tuple[tuple[str, str], list[tuple[str, int]]] | None:
+    ignored_wallets = _get_ignored_wallets(address, wallet, all_wallets)
     if not wallet["last_updated_hash"]:
-        transactions = await solana.get_transactions(address)
+        transactions = await solana.get_transactions(
+            address, ignore_internal_transfers=ignored_wallets
+        )
         transactions = [transactions[-1]]
     else:
         transactions = await solana.get_transactions(
-            address, after_hash=wallet["last_updated_hash"]
+            address,
+            after_hash=wallet["last_updated_hash"],
+            ignore_internal_transfers=ignored_wallets,
         )
     if len(transactions) > 0:
         return (address, transactions[-1]["transaction_hash"]), [
@@ -51,7 +66,10 @@ class CLI:
     async def track_wallets() -> None:
         all_wallets = state.get_all_tracked_wallets()
         tracked_data = await asyncio.gather(
-            *[_track_one_wallet(wallet, all_wallets[wallet]) for wallet in all_wallets]
+            *[
+                _track_one_wallet(wallet, all_wallets[wallet], all_wallets)
+                for wallet in all_wallets
+            ]
         )
         non_empty_data = [
             wallet_data for wallet_data in tracked_data if wallet_data is not None
@@ -78,8 +96,14 @@ class CLI:
         pprint(response)
 
     @staticmethod
-    async def interpret_transaction(transaction_hash: str, owner: str) -> None:
-        response = await solana.interpret_transaction(transaction_hash, owner)
+    async def interpret_transaction(
+        transaction_hash: str, owner: str, *ignored_internal_addresses
+    ) -> None:
+        response = await solana.interpret_transaction(
+            transaction_hash,
+            owner,
+            ignore_internal_transfers=list(ignored_internal_addresses),
+        )
         pprint(response)
 
 

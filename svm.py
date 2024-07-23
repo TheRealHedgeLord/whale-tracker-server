@@ -13,7 +13,7 @@ TOKEN_PROGRAM_ID = Pubkey.from_string("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5
 ASSOCIATED_TOKEN_PROGRAM_ID = Pubkey.from_string(
     "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
 )
-DUST_SOL = Decimal("0.01")
+DUST = Decimal("0.01")
 
 
 class SPL(TypedDict):
@@ -56,14 +56,22 @@ class Solana:
         return str(key)
 
     async def get_transactions(
-        self, account: str, after_hash: str | None = None, limit: int = 10
+        self,
+        account: str,
+        after_hash: str | None = None,
+        limit: int = 10,
+        ignore_internal_transfers: list[str] | None = None,
     ) -> list[Transaction]:
         trasnaction_hashes = await self.solscan_api.get_transactions_for_account(
             account, after_hash=after_hash, limit=limit
         )
         interpreted_transactions = await asyncio.gather(
             *[
-                self.interpret_transaction(transaction_hash, account)
+                self.interpret_transaction(
+                    transaction_hash,
+                    account,
+                    ignore_internal_transfers=ignore_internal_transfers,
+                )
                 for transaction_hash in trasnaction_hashes
             ]
         )
@@ -76,37 +84,71 @@ class Solana:
         ]
 
     async def interpret_transaction(
-        self, transaction_hash: str, owner: str
+        self,
+        transaction_hash: str,
+        owner: str,
+        ignore_internal_transfers: list[str] | None = None,
     ) -> Transaction:
         token_actions = []
         token_balances, sol_transfers, unknown_transfers, block_time = (
             await self.solscan_api.get_transaction_details(transaction_hash)
         )
+        token_balance_changes = {}
+        token_metas = {}
         for token in token_balances:
             owner_token_account = self.get_associated_token_account(
                 token["token"]["tokenAddress"], owner
             )
-            if owner_token_account == token["account"]:
+            internal_token_accounts = (
+                [
+                    self.get_associated_token_account(
+                        token["token"]["tokenAddress"], address
+                    )
+                    for address in ignore_internal_transfers
+                ]
+                if ignore_internal_transfers
+                else []
+            )
+            if (
+                owner_token_account == token["account"]
+                or token["account"] in internal_token_accounts
+            ):
+                mint = token["token"]["tokenAddress"]
                 decimals = token["token"]["decimals"]
-                token_actions.append(
-                    {
-                        "token": {
-                            "ticker": token["token"]["symbol"],
-                            "name": token["token"]["name"],
-                            "mint": token["token"]["tokenAddress"],
-                        },
-                        "amount": (
-                            Decimal(token["amount"]["postAmount"])
-                            - Decimal(token["amount"]["preAmount"])
-                        )
-                        / Decimal(10**decimals),
+                if mint not in token_balance_changes:
+                    token_balance_changes[mint] = Decimal("0")
+                if mint not in token_metas:
+                    token_metas[mint] = {
+                        "ticker": token["token"]["symbol"],
+                        "name": token["token"]["name"],
+                        "mint": mint,
                     }
+                token_balance_changes[mint] += (
+                    Decimal(token["amount"]["postAmount"])
+                    - Decimal(token["amount"]["preAmount"])
+                ) / Decimal(10**decimals)
+        for mint in token_balance_changes:
+            if (
+                token_balance_changes[mint] > DUST
+                or token_balance_changes[mint] < -DUST
+            ):
+                token_actions.append(
+                    {"token": token_metas[mint], "amount": token_balance_changes[mint]}
                 )
         sol_diff = Decimal("0")
         for sol_transfer in sol_transfers:
-            if sol_transfer["source"] == owner:
+            internal_accounts = (
+                ignore_internal_transfers if ignore_internal_transfers else []
+            )
+            if (
+                sol_transfer["source"] == owner
+                and sol_transfer["destination"] not in internal_accounts
+            ):
                 sol_diff -= Decimal(sol_transfer["amount"]) / Decimal("1000000000")
-            elif sol_transfer["destination"] == owner:
+            elif (
+                sol_transfer["destination"] == owner
+                and sol_transfer["source"] not in internal_accounts
+            ):
                 sol_diff += Decimal(sol_transfer["amount"]) / Decimal("1000000000")
         for unknown in unknown_transfers:
             if "event" in unknown:
@@ -125,7 +167,7 @@ class Solana:
                             SOL, owner
                         ):
                             sol_diff -= amount
-        if sol_diff > DUST_SOL or sol_diff < -DUST_SOL:
+        if sol_diff > DUST or sol_diff < -DUST:
             token_actions.append({"token": "SOL", "amount": sol_diff})
         return {
             "transaction_hash": transaction_hash,
