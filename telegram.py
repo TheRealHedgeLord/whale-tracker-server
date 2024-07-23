@@ -19,6 +19,9 @@ The first line will be a telegram command with the name of the method, the follo
 <b>help</b>()
  - get help text
 
+<b>show_tracked_wallets</b>(group)
+ - show all tracked wallets for group, if group is not passed, show all tracked wallets for all groups
+
 <b>add_wallet</b>(address, name, group)
  - add a new wallet to track (admin only)
 
@@ -27,6 +30,9 @@ The first line will be a telegram command with the name of the method, the follo
 
 <b>remove_wallet</b>(address)
  - remove a wallet from tracker (admin only)
+
+<b>rename_group</b>(group, new_name)
+ - rename a group
 
 """
 

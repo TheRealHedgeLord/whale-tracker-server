@@ -146,6 +146,33 @@ async def _process_telegram_methods(telegram_method: TelegramMethod) -> None:
     match telegram_method["method"]:
         case "help":
             await bot.send_message(WHALE_TRACKER_CHAT_ID, HELP_TEXT)
+        case "show_tracked_wallets":
+            all_wallets = state.get_all_tracked_wallets()
+            tracked_wallets_by_group = {}
+            for wallet in all_wallets:
+                group = all_wallets[wallet]["group"]
+                if group not in tracked_wallets_by_group:
+                    tracked_wallets_by_group[group] = []
+                tracked_wallets_by_group[group].append(
+                    "<b>{name}</b>: <code>{address}</code>".format(
+                        name=all_wallets[wallet]["name"], address=wallet
+                    )
+                )
+            messages_by_group = {
+                group: f"Tracked wallets for <b>{group}</b>\n\n"
+                + "\n".join(tracked_wallets_by_group[group])
+                for group in tracked_wallets_by_group
+            }
+            if (
+                "group" in telegram_method["kwargs"]
+                and telegram_method["kwargs"]["group"] in messages_by_group
+            ):
+                message = messages_by_group[telegram_method["kwargs"]["group"]]
+            else:
+                message = SEPARATOR.join(
+                    [messages_by_group[group] for group in messages_by_group]
+                )
+            await bot.send_message(WHALE_TRACKER_CHAT_ID, message)
         case "add_wallet":
             if (
                 _is_admin(telegram_method["user"])
@@ -205,6 +232,28 @@ async def _process_telegram_methods(telegram_method: TelegramMethod) -> None:
                         telegram_method["kwargs"]["address"]
                     )
                 await bot.send_message(WHALE_TRACKER_CHAT_ID, message)
+        case "rename_group":
+            if (
+                _is_admin(telegram_method["user"])
+                and "group" in telegram_method["kwargs"]
+                and "new_name" in telegram_method["kwargs"]
+            ):
+                all_wallets = state.get_all_tracked_wallets()
+                for wallet in all_wallets:
+                    if (
+                        all_wallets[wallet]["group"]
+                        == telegram_method["kwargs"]["group"]
+                    ):
+                        state.update_tracked_wallet(
+                            wallet, group=telegram_method["kwargs"]["new_name"]
+                        )
+                await bot.send_message(
+                    WHALE_TRACKER_CHAT_ID,
+                    "successfully renamed group <b>{old}</b> to <b>{new}</b>".format(
+                        old=telegram_method["kwargs"]["group"],
+                        new=telegram_method["kwargs"]["new_name"],
+                    ),
+                )
 
     state.update_server_params(last_processed_update_id=telegram_method["update_id"])
 
