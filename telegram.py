@@ -12,6 +12,7 @@ HELP_TEXT = """<b>Welcome To Whale Tracker</b>
 You can use command to call telegram methods to track your favourite whales!
 
 <b>Schema</b>
+
 The first line will be a telegram command with the name of the method, the following lines will be keyword arguments of the methods, with keys and values separated by ":", each keyword argument will be in a different line.
 
 <b>Methods</b>
