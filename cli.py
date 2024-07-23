@@ -4,6 +4,7 @@ import asyncio
 
 from dotenv import load_dotenv
 from pathlib import Path
+from pprint import pprint
 
 from state_manager import State, TrackedWallet
 from svm import Solana, Transaction
@@ -71,7 +72,18 @@ class CLI:
         for (address, last_updated_hash), _ in non_empty_data:
             state.update_tracked_wallet(address, last_updated_hash=last_updated_hash)
 
+    @staticmethod
+    async def get_transaction_details(transaction_hash) -> None:
+        response = await solana.solscan_api.get_transaction_details(transaction_hash)
+        pprint(response)
+
+    @staticmethod
+    async def interpret_transaction(transaction_hash: str, owner: str) -> None:
+        response = await solana.interpret_transaction(transaction_hash, owner)
+        pprint(response)
+
 
 if __name__ == "__main__":
     method = sys.argv[1]
-    asyncio.run(getattr(CLI, method)())
+    args = sys.argv[2::]
+    asyncio.run(getattr(CLI, method)(*args))

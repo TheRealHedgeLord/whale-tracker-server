@@ -63,7 +63,7 @@ class Solana:
         )
         interpreted_transactions = await asyncio.gather(
             *[
-                self._interpret_transaction(transaction_hash, account)
+                self.interpret_transaction(transaction_hash, account)
                 for transaction_hash in trasnaction_hashes
             ]
         )
@@ -75,7 +75,7 @@ class Solana:
             if len(transaction["token_actions"]) > 0
         ]
 
-    async def _interpret_transaction(
+    async def interpret_transaction(
         self, transaction_hash: str, owner: str
     ) -> Transaction:
         token_actions = []
@@ -112,12 +112,19 @@ class Solana:
             if "event" in unknown:
                 for event in unknown["event"]:
                     if (
-                        "destination" in event
+                        "source" in event
+                        and "destination" in event
                         and "amount" in event
-                        and event["destination"]
-                        == self.get_associated_token_account(SOL, owner)
                     ):
-                        sol_diff += Decimal(event["amount"]) / Decimal("1000000000")
+                        amount = Decimal(event["amount"]) / Decimal("1000000000")
+                        if event["destination"] == self.get_associated_token_account(
+                            SOL, owner
+                        ):
+                            sol_diff += amount
+                        if event["source"] == self.get_associated_token_account(
+                            SOL, owner
+                        ):
+                            sol_diff -= amount
         if sol_diff > DUST_SOL or sol_diff < -DUST_SOL:
             token_actions.append({"token": "SOL", "amount": sol_diff})
         return {
