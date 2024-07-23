@@ -165,10 +165,9 @@ class CLI:
             holding_message = await _get_current_holding(all_wallets)
             token_summary = _get_token_summary()
             message = SEPARATOR.join([summary_message, holding_message, token_summary])
-            print(message)
-            # await bot.send_message(WHALE_TRACKER_CHAT_ID, summary_message)
-        # for (address, last_updated_hash), _ in non_empty_data:
-        #     state.update_tracked_wallet(address, last_updated_hash=last_updated_hash)
+            await bot.send_message(WHALE_TRACKER_CHAT_ID, message)
+        for (address, last_updated_hash), _ in non_empty_data:
+            state.update_tracked_wallet(address, last_updated_hash=last_updated_hash)
 
     @staticmethod
     async def get_transaction_details(transaction_hash) -> None:
