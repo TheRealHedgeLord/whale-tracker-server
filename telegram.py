@@ -33,7 +33,7 @@ The first line will be a telegram command with the name of the method, the follo
  - remove a wallet from tracker (admin only)
 
 <b>rename_group</b>(group, new_name)
- - rename a group
+ - rename a group (admin only)
 
 """
 
