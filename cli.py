@@ -55,6 +55,23 @@ async def _track_one_wallet(
             ignore_internal_transfers=ignored_wallets,
         )
     if len(transactions) > 0:
+        if wallet["group"] not in CLI.lifespan_globals["mentioned_tokens_by_group"]:
+            CLI.lifespan_globals["mentioned_tokens_by_group"][wallet["group"]] = []
+        for transaction in transactions:
+            for token_action in transaction["token_actions"]:
+                token = (
+                    token_action["token"] if token_action["token"] != "SOL" else None
+                )
+                if (
+                    token
+                    and token
+                    not in CLI.lifespan_globals["mentioned_tokens_by_group"][
+                        wallet["group"]
+                    ]
+                ):
+                    CLI.lifespan_globals["mentioned_tokens_by_group"][
+                        wallet["group"]
+                    ].append(token)
         return (address, transactions[-1]["transaction_hash"]), [
             _get_message_and_timestamp(wallet, transaction)
             for transaction in transactions
@@ -62,8 +79,11 @@ async def _track_one_wallet(
 
 
 class CLI:
+    lifespan_globals = {}
+
     @staticmethod
     async def track_wallets() -> None:
+        CLI.lifespan_globals["mentioned_tokens_by_group"] = {}
         all_wallets = state.get_all_tracked_wallets()
         tracked_data = await asyncio.gather(
             *[
@@ -86,9 +106,11 @@ class CLI:
         ]
         if len(sorted_messages) > 0:
             summary_message = SEPARATOR.join(sorted_messages)
-            await bot.send_message(WHALE_TRACKER_CHAT_ID, summary_message)
-        for (address, last_updated_hash), _ in non_empty_data:
-            state.update_tracked_wallet(address, last_updated_hash=last_updated_hash)
+            print(summary_message)
+            pprint(CLI.lifespan_globals["mentioned_tokens_by_group"])
+            # await bot.send_message(WHALE_TRACKER_CHAT_ID, summary_message)
+        # for (address, last_updated_hash), _ in non_empty_data:
+        #     state.update_tracked_wallet(address, last_updated_hash=last_updated_hash)
 
     @staticmethod
     async def get_transaction_details(transaction_hash) -> None:
@@ -105,6 +127,11 @@ class CLI:
             ignore_internal_transfers=list(ignored_internal_addresses),
         )
         pprint(response)
+
+    @staticmethod
+    async def get_associated_token_account(mint: str, owner: str) -> None:
+        account = solana.get_associated_token_account(mint, owner)
+        print(account)
 
 
 if __name__ == "__main__":

@@ -20,6 +20,7 @@ class SPL(TypedDict):
     ticker: str
     name: str
     mint: str
+    decimals: int
 
 
 class TokenAction(TypedDict):
@@ -90,7 +91,7 @@ class Solana:
         ignore_internal_transfers: list[str] | None = None,
     ) -> Transaction:
         token_actions = []
-        token_balances, sol_transfers, unknown_transfers, block_time = (
+        token_balances, input_accounts, block_time = (
             await self.solscan_api.get_transaction_details(transaction_hash)
         )
         token_balance_changes = {}
@@ -122,6 +123,7 @@ class Solana:
                         "ticker": token["token"]["symbol"],
                         "name": token["token"]["name"],
                         "mint": mint,
+                        "decimals": decimals,
                     }
                 token_balance_changes[mint] += (
                     Decimal(token["amount"]["postAmount"])
@@ -136,37 +138,16 @@ class Solana:
                     {"token": token_metas[mint], "amount": token_balance_changes[mint]}
                 )
         sol_diff = Decimal("0")
-        for sol_transfer in sol_transfers:
-            internal_accounts = (
-                ignore_internal_transfers if ignore_internal_transfers else []
-            )
-            if (
-                sol_transfer["source"] == owner
-                and sol_transfer["destination"] not in internal_accounts
-            ):
-                sol_diff -= Decimal(sol_transfer["amount"]) / Decimal("1000000000")
-            elif (
-                sol_transfer["destination"] == owner
-                and sol_transfer["source"] not in internal_accounts
-            ):
-                sol_diff += Decimal(sol_transfer["amount"]) / Decimal("1000000000")
-        for unknown in unknown_transfers:
-            if "event" in unknown:
-                for event in unknown["event"]:
-                    if (
-                        "source" in event
-                        and "destination" in event
-                        and "amount" in event
-                    ):
-                        amount = Decimal(event["amount"]) / Decimal("1000000000")
-                        if event["destination"] == self.get_associated_token_account(
-                            SOL, owner
-                        ):
-                            sol_diff += amount
-                        if event["source"] == self.get_associated_token_account(
-                            SOL, owner
-                        ):
-                            sol_diff -= amount
+        all_relevant_accounts = (
+            [owner] + ignore_internal_transfers
+            if ignore_internal_transfers
+            else [owner]
+        )
+        for account_diff in input_accounts:
+            if account_diff["account"] in all_relevant_accounts:
+                sol_diff += Decimal(
+                    account_diff["postBalance"] - account_diff["preBalance"]
+                ) / Decimal(10**9)
         if sol_diff > DUST or sol_diff < -DUST:
             token_actions.append({"token": "SOL", "amount": sol_diff})
         return {
