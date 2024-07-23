@@ -40,9 +40,15 @@ class State:
                 wallets[address] = wallet
         return wallets
 
-    def track_new_wallet(self, address: str, name: str, group: str) -> None: ...
+    def track_new_wallet(self, address: str, name: str, group: str) -> None:
+        file_path = f"{self._root}/tracked_wallets/{address}.json"
+        data = {"name": name, "group": group, "last_updated_hash": None}
+        with open(file_path, mode="w") as f:
+            json.dump(data, f)
 
-    def remove_wallet(self, address: str) -> None: ...
+    def remove_wallet(self, address: str) -> None:
+        file_path = f"{self._root}/tracked_wallets/{address}.json"
+        os.remove(file_path)
 
     def get_server_params(self) -> ServerParams:
         file_path = f"{self._root}/server_params.json"

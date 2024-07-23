@@ -137,12 +137,75 @@ async def _get_current_holding(all_wallets: dict[str, TrackedWallet]) -> str:
     return SEPARATOR.join(group_reports)
 
 
+def _is_admin(user: str) -> bool:
+    server_parameters = state.get_server_params()
+    return user in server_parameters["admin_users"]
+
+
 async def _process_telegram_methods(telegram_method: TelegramMethod) -> None:
     match telegram_method["method"]:
         case "help":
             await bot.send_message(WHALE_TRACKER_CHAT_ID, HELP_TEXT)
-        case _:
-            ...
+        case "add_wallet":
+            if (
+                _is_admin(telegram_method["user"])
+                and "address" in telegram_method["kwargs"]
+                and "name" in telegram_method["kwargs"]
+                and "group" in telegram_method["kwargs"]
+            ):
+                try:
+                    state.track_new_wallet(
+                        telegram_method["kwargs"]["address"],
+                        telegram_method["kwargs"]["name"],
+                        telegram_method["kwargs"]["group"],
+                    )
+                    message = "successfully added wallet <b>{}</b> to tracker".format(
+                        telegram_method["kwargs"]["address"]
+                    )
+                except:
+                    message = "failed to add wallet <b>{}</b> to tracker".format(
+                        telegram_method["kwargs"]["address"]
+                    )
+                await bot.send_message(WHALE_TRACKER_CHAT_ID, message)
+        case "update_wallet":
+            if (
+                _is_admin(telegram_method["user"])
+                and "address" in telegram_method["kwargs"]
+            ):
+                valid_kwargs = {
+                    key: telegram_method["kwargs"][key]
+                    for key in ["name", "group"]
+                    if key in telegram_method["kwargs"]
+                }
+                if len(valid_kwargs) > 0:
+                    try:
+                        state.update_tracked_wallet(
+                            telegram_method["kwargs"]["address"], **valid_kwargs
+                        )
+                        message = "successfully updated wallet <b>{}</b>".format(
+                            telegram_method["kwargs"]["address"]
+                        )
+                    except:
+                        message = "failed to update wallet <b>{}</b>".format(
+                            telegram_method["kwargs"]["address"]
+                        )
+                    await bot.send_message(WHALE_TRACKER_CHAT_ID, message)
+        case "remove_wallet":
+            if (
+                _is_admin(telegram_method["user"])
+                and "address" in telegram_method["kwargs"]
+            ):
+                try:
+                    state.remove_wallet(telegram_method["kwargs"]["address"])
+                    message = "successfully removed wallet <b>{}</b>".format(
+                        telegram_method["kwargs"]["address"]
+                    )
+                except:
+                    message = "failed to remove wallet <b>{}</b>".format(
+                        telegram_method["kwargs"]["address"]
+                    )
+                await bot.send_message(WHALE_TRACKER_CHAT_ID, message)
+
     state.update_server_params(last_processed_update_id=telegram_method["update_id"])
 
 
