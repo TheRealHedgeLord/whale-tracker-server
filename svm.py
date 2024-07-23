@@ -1,7 +1,8 @@
+import json
 import asyncio
 
 from solders.pubkey import Pubkey  # type: ignore
-from typing import TypedDict, Literal
+from typing import TypedDict, Literal, Any
 from decimal import Decimal
 from functools import cache
 
@@ -35,8 +36,28 @@ class Transaction(TypedDict):
 
 
 class RPC(Client):
+    _version = "2.0"
+
     def __init__(self, rpc_url: str) -> None:
         self.url = rpc_url
+        self._current_id = 1
+
+    async def http_method(self, method: str, *params: Any) -> dict:
+        data = json.dumps(
+            {
+                "jsonrpc": self._version,
+                "id": self._current_id,
+                "method": method,
+                "params": list(params),
+            }
+        )
+        self._current_id += 1
+        return await self.call(
+            "post",
+            "",
+            data=data,
+            headers={"Content-Type": "application/json"},
+        )  # type: ignore
 
 
 class Solana:
@@ -55,6 +76,21 @@ class Solana:
             program_id=ASSOCIATED_TOKEN_PROGRAM_ID,
         )
         return str(key)
+
+    async def get_spl_balance(self, account: str, token: SPL) -> Decimal:
+        mint = token["mint"]
+        decimals = token["decimals"]
+        token_account = self.get_associated_token_account(mint, account)
+        response = await self.rpc.http_method(
+            "getAccountInfo", token_account, {"encoding": "jsonParsed"}
+        )
+        if response["result"]["value"] is None:
+            return Decimal("0")
+        else:
+            balance = response["result"]["value"]["data"]["parsed"]["info"][
+                "tokenAmount"
+            ]["amount"]
+            return Decimal(balance) / Decimal(10**decimals)
 
     async def get_transactions(
         self,

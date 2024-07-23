@@ -4,10 +4,11 @@ import asyncio
 
 from dotenv import load_dotenv
 from pathlib import Path
+from decimal import Decimal
 from pprint import pprint
 
 from state_manager import State, TrackedWallet
-from svm import Solana, Transaction
+from svm import Solana, Transaction, SPL
 from telegram import TelegramBot, generate_transaction_message, SEPARATOR
 
 load_dotenv()
@@ -78,6 +79,61 @@ async def _track_one_wallet(
         ]
 
 
+def _all_mentioned_tokens_message() -> str: ...
+
+
+async def _get_total_balance(wallets: list[str], token: SPL) -> tuple[str, Decimal]:
+    balances = await asyncio.gather(
+        *[solana.get_spl_balance(wallet, token) for wallet in wallets]
+    )
+    return token["ticker"], Decimal(sum(balances))
+
+
+async def _get_current_holding_message_for_group(
+    group: str, wallets: list[str], tokens: list[SPL]
+) -> str:
+    response = await asyncio.gather(
+        *[_get_total_balance(wallets, token) for token in tokens]
+    )
+    return f"Current holdings of mentioned tokens:\n<b>{group}</b>\n\n" + "\n".join(
+        [f"<b>{ticker}</b>: {balance}" for ticker, balance in response]
+    )
+
+
+def _get_token_summary() -> str:
+    unique_tokens = []
+    for group in CLI.lifespan_globals["mentioned_tokens_by_group"]:
+        for token in CLI.lifespan_globals["mentioned_tokens_by_group"][group]:
+            if token not in unique_tokens:
+                unique_tokens.append(token)
+    return "Token detail for mentioned tokens\n\n" + "\n".join(
+        [
+            f"<b>{token['ticker']}</b> ({token['name']}): <code>{token['mint']}</code>"
+            for token in unique_tokens
+        ]
+    )
+
+
+async def _get_current_holding(all_wallets: dict[str, TrackedWallet]) -> str:
+    wallets_by_group = {}
+    for wallet in all_wallets:
+        group = all_wallets[wallet]["group"]
+        if group not in wallets_by_group:
+            wallets_by_group[group] = []
+        wallets_by_group[group].append(wallet)
+    group_reports = await asyncio.gather(
+        *[
+            _get_current_holding_message_for_group(
+                group,
+                wallets_by_group[group],
+                CLI.lifespan_globals["mentioned_tokens_by_group"][group],
+            )
+            for group in wallets_by_group
+        ]
+    )
+    return SEPARATOR.join(group_reports)
+
+
 class CLI:
     lifespan_globals = {}
 
@@ -106,8 +162,10 @@ class CLI:
         ]
         if len(sorted_messages) > 0:
             summary_message = SEPARATOR.join(sorted_messages)
-            print(summary_message)
-            pprint(CLI.lifespan_globals["mentioned_tokens_by_group"])
+            holding_message = await _get_current_holding(all_wallets)
+            token_summary = _get_token_summary()
+            message = SEPARATOR.join([summary_message, holding_message, token_summary])
+            print(message)
             # await bot.send_message(WHALE_TRACKER_CHAT_ID, summary_message)
         # for (address, last_updated_hash), _ in non_empty_data:
         #     state.update_tracked_wallet(address, last_updated_hash=last_updated_hash)

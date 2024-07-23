@@ -12,7 +12,7 @@ def _parse_token_action(token_action: TokenAction) -> str:
     identifier = (
         "<b>SOL</b>"
         if token_action["token"] == "SOL"
-        else f"<b>{token_action['token']['ticker']}</b> ({token_action['token']['name']}, <code>{token_action['token']['mint']}</code>)"
+        else f"<b>{token_action['token']['ticker']}</b>"
     )
     positive_sign = "+" if token_action["amount"] > Decimal("0") else ""
     return f"<b>{positive_sign}{token_action['amount']}</b> {identifier}"
