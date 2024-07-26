@@ -300,7 +300,9 @@ class CLI:
                     address, last_updated_hash=last_updated_hash
                 )
         except:
-            await bot.send_message(WHALE_LOGS_CHAT_ID, traceback.format_exc())
+            await bot.send_message(
+                WHALE_LOGS_CHAT_ID, traceback.format_exc(), parse_mode="markdown"
+            )
 
     @staticmethod
     async def get_transaction_details(transaction_hash) -> None:

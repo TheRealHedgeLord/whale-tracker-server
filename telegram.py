@@ -128,9 +128,11 @@ class TelegramBot(Client):
                 )
         return sorted(telegram_methods, key=lambda x: x["update_id"])
 
-    async def send_message(self, chat_id: str, message: str) -> Any:
+    async def send_message(
+        self, chat_id: str, message: str, parse_mode: str = "html"
+    ) -> Any:
         return await self.call(
             "get",
             f"/bot{self._bot_token}/sendMessage",
-            params={"chat_id": chat_id, "parse_mode": "html", "text": message},
+            params={"chat_id": chat_id, "parse_mode": parse_mode, "text": message},
         )
