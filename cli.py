@@ -54,7 +54,7 @@ async def _track_one_wallet(
         transactions = await solana.get_transactions(
             address, ignore_internal_transfers=ignored_wallets
         )
-        transactions = [transactions[-1]]
+        transactions = transactions[-1::]
     else:
         transactions = await solana.get_transactions(
             address,
