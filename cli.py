@@ -133,7 +133,7 @@ async def _get_current_holding(all_wallets: dict[str, TrackedWallet]) -> str:
                 wallets_by_group[group],
                 CLI.lifespan_globals["mentioned_tokens_by_group"][group],
             )
-            for group in wallets_by_group
+            for group in CLI.lifespan_globals["mentioned_tokens_by_group"]
         ]
     )
     return SEPARATOR.join(group_reports)
