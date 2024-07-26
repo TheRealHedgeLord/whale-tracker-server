@@ -129,7 +129,11 @@ class Solana:
             for transaction in sorted(
                 interpreted_transactions, key=lambda tx: tx["block_time"]
             )
-            if len(transaction["token_actions"]) > 0
+            if (len(transaction["token_actions"]) > 0)
+            and not (
+                len(transaction["token_actions"]) == 1
+                and transaction["token_actions"][0]["token"] == "SOL"
+            )
         ]
 
     async def interpret_transaction(
