@@ -1,6 +1,7 @@
 import os
 import sys
 import asyncio
+import traceback
 
 from dotenv import load_dotenv
 from pathlib import Path
@@ -23,6 +24,7 @@ SOLANA_RPC_HTTP_URL = os.environ["SOLANA_RPC_HTTP_URL"]
 SOLSCAN_API_TOKEN = os.environ["SOLSCAN_API_V1"]
 TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 WHALE_TRACKER_CHAT_ID = os.environ["WHALE_TRACKER_CHAT_ID"]
+WHALE_LOGS_CHAT_ID = os.environ["WHALE_LOGS_CHAT_ID"]
 
 solana = Solana(SOLANA_RPC_HTTP_URL, SOLSCAN_API_TOKEN)
 bot = TelegramBot(TELEGRAM_BOT_TOKEN)
@@ -263,35 +265,42 @@ class CLI:
 
     @staticmethod
     async def track_wallets() -> None:
-        CLI.lifespan_globals["mentioned_tokens_by_group"] = {}
-        all_wallets = state.get_all_tracked_wallets()
-        tracked_data = await asyncio.gather(
-            *[
-                _track_one_wallet(wallet, all_wallets[wallet], all_wallets)
-                for wallet in all_wallets
-            ]
-        )
-        non_empty_data = [
-            wallet_data for wallet_data in tracked_data if wallet_data is not None
-        ]
-        message_stream = []
-        for _, message_and_timestamp in non_empty_data:
-            message_stream += message_and_timestamp
-        sorted_messages = [
-            message
-            for message, _ in sorted(
-                message_stream,
-                key=lambda message_and_timestamp: message_and_timestamp[1],
+        try:
+            CLI.lifespan_globals["mentioned_tokens_by_group"] = {}
+            all_wallets = state.get_all_tracked_wallets()
+            tracked_data = await asyncio.gather(
+                *[
+                    _track_one_wallet(wallet, all_wallets[wallet], all_wallets)
+                    for wallet in all_wallets
+                ]
             )
-        ]
-        if len(sorted_messages) > 0:
-            summary_message = SEPARATOR.join(sorted_messages)
-            holding_message = await _get_current_holding(all_wallets)
-            token_summary = _get_token_summary()
-            message = SEPARATOR.join([summary_message, holding_message, token_summary])
-            await bot.send_message(WHALE_TRACKER_CHAT_ID, message)
-        for (address, last_updated_hash), _ in non_empty_data:
-            state.update_tracked_wallet(address, last_updated_hash=last_updated_hash)
+            non_empty_data = [
+                wallet_data for wallet_data in tracked_data if wallet_data is not None
+            ]
+            message_stream = []
+            for _, message_and_timestamp in non_empty_data:
+                message_stream += message_and_timestamp
+            sorted_messages = [
+                message
+                for message, _ in sorted(
+                    message_stream,
+                    key=lambda message_and_timestamp: message_and_timestamp[1],
+                )
+            ]
+            if len(sorted_messages) > 0:
+                summary_message = SEPARATOR.join(sorted_messages)
+                holding_message = await _get_current_holding(all_wallets)
+                token_summary = _get_token_summary()
+                message = SEPARATOR.join(
+                    [summary_message, holding_message, token_summary]
+                )
+                await bot.send_message(WHALE_TRACKER_CHAT_ID, message)
+            for (address, last_updated_hash), _ in non_empty_data:
+                state.update_tracked_wallet(
+                    address, last_updated_hash=last_updated_hash
+                )
+        except:
+            await bot.send_message(WHALE_LOGS_CHAT_ID, traceback.format_exc())
 
     @staticmethod
     async def get_transaction_details(transaction_hash) -> None:
@@ -329,6 +338,11 @@ class CLI:
         )
         for telegram_method in telegram_methods:
             await _process_telegram_methods(telegram_method)
+
+    @staticmethod
+    async def get_telegram_update() -> None:
+        update = await bot.get_updates()
+        pprint(update)
 
 
 if __name__ == "__main__":

@@ -81,6 +81,12 @@ class TelegramBot(Client):
     def __init__(self, bot_token: str) -> None:
         self._bot_token = bot_token
 
+    async def get_updates(self) -> dict | list:
+        return await self.call(
+            "get",
+            f"/bot{self._bot_token}/getUpdates",
+        )
+
     async def get_bot_commands(
         self, chat_id: str, after_id: int = 0
     ) -> list[TelegramMethod]:
