@@ -60,12 +60,16 @@ def generate_transaction_message(
 ) -> str:
     time = datetime.fromtimestamp(transaction["block_time"])
     transaction_hash = transaction["transaction_hash"]
+    labels = (
+        "" if not transaction["labels"] else "\nLabels: " + transaction["labels"] + "\n"
+    )
     message = (
         f"{time.astimezone()}:\n"
         f"<b>{group} ({name})</b>\n\n"
         + "\n".join(
             [_parse_token_action(token) for token in transaction["token_actions"]]
         )
+        + labels
         + f'\n\n<a href="https://solscan.io/tx/{transaction_hash}"><u>View Transaction</u></a>'
     )
     return message

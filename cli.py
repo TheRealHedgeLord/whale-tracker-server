@@ -299,6 +299,13 @@ class CLI:
         pprint(response)
 
     @staticmethod
+    async def get_raw_transaction_details(transaction_hash) -> None:
+        response = await solana.solscan_api.get_raw_transaction_details(
+            transaction_hash
+        )
+        pprint(response)
+
+    @staticmethod
     async def interpret_transaction(
         transaction_hash: str, owner: str, *ignored_internal_addresses
     ) -> None:
@@ -307,7 +314,7 @@ class CLI:
             owner,
             ignore_internal_transfers=list(ignored_internal_addresses),
         )
-        pprint(response)
+        print(generate_transaction_message("Test Group", "Test Wallet", response))
 
     @staticmethod
     async def get_associated_token_account(mint: str, owner: str) -> None:

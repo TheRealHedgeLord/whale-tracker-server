@@ -47,18 +47,30 @@ class SolScanAPI(Client):
             before_hash = response[-1]["txHash"]
         return transactions
 
+    async def get_raw_transaction_details(self, transaction_hash: str) -> dict:
+        return await self.call(
+            "get",
+            f"/v1.0/transaction/{transaction_hash}",
+            headers=self.headers,
+        )  # type: ignore
+
     async def get_transaction_details(
         self, transaction_hash: str
-    ) -> tuple[list, list, int]:
+    ) -> tuple[list, list, int, set]:
         response = await self.call(
             "get",
             f"/v1.0/transaction/{transaction_hash}",
             headers=self.headers,
         )
+        instructions = set()
+        for inner_instruction in response["innerInstructions"]:  # type: ignore
+            for instruction in inner_instruction["parsedInstructions"]:
+                instructions.add(instruction["programId"])
         return (
             response["tokenBalances"] if "tokenBalances" in response else [],  # type: ignore
             response["inputAccount"] if "inputAccount" in response else [],  # type: ignore
             response["blockTime"],  # type: ignore
+            instructions,
         )
 
     async def get_transaction_actions(self, transaction_hash: str) -> dict:

@@ -11,10 +11,21 @@ from solscan import SolScanAPI
 
 SOL = "So11111111111111111111111111111111111111112"
 TOKEN_PROGRAM_ID = Pubkey.from_string("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+JUPITER_DCA = "DCA265Vj8a9CEuX1eb1LWRnDT7uK6q1xMipnNyatn23M"
+JUPITER_LIMIT_ORDER = "j1o2qRpjcyUwEvwtcfhEQefh773ZgjxcVRry7LDqg5X"
 ASSOCIATED_TOKEN_PROGRAM_ID = Pubkey.from_string(
     "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
 )
 DUST = Decimal("0.01")
+
+
+def _get_labels(programs: set) -> str:
+    labels = []
+    if JUPITER_DCA in programs:
+        labels.append("Jupiter DCA")
+    if JUPITER_LIMIT_ORDER in programs:
+        labels.append("Jupiter Limit Order")
+    return ", ".join(labels)
 
 
 class SPL(TypedDict):
@@ -33,6 +44,7 @@ class Transaction(TypedDict):
     transaction_hash: str
     token_actions: list[TokenAction]
     block_time: int
+    labels: str
 
 
 class RPC(Client):
@@ -127,7 +139,7 @@ class Solana:
         ignore_internal_transfers: list[str] | None = None,
     ) -> Transaction:
         token_actions = []
-        token_balances, input_accounts, block_time = (
+        token_balances, input_accounts, block_time, programs = (
             await self.solscan_api.get_transaction_details(transaction_hash)
         )
         token_balance_changes = {}
@@ -190,4 +202,5 @@ class Solana:
             "transaction_hash": transaction_hash,
             "token_actions": token_actions,
             "block_time": block_time,
+            "labels": _get_labels(programs),
         }
