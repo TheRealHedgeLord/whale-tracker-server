@@ -294,6 +294,14 @@ class CLI:
                 message = SEPARATOR.join(
                     [summary_message, holding_message, token_summary]
                 )
+                if len(message) > 4096:
+                    message = SEPARATOR.join(
+                        [
+                            "Txs omitted because the message is too long",
+                            holding_message,
+                            token_summary,
+                        ]
+                    )
                 if not test:
                     await bot.send_message(WHALE_TRACKER_CHAT_ID, message)
                 else:
