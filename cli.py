@@ -264,7 +264,7 @@ class CLI:
     lifespan_globals = {}
 
     @staticmethod
-    async def track_wallets() -> None:
+    async def track_wallets(test: bool = False) -> None:
         try:
             CLI.lifespan_globals["mentioned_tokens_by_group"] = {}
             all_wallets = state.get_all_tracked_wallets()
@@ -294,11 +294,15 @@ class CLI:
                 message = SEPARATOR.join(
                     [summary_message, holding_message, token_summary]
                 )
-                await bot.send_message(WHALE_TRACKER_CHAT_ID, message)
-            for (address, last_updated_hash), _ in non_empty_data:
-                state.update_tracked_wallet(
-                    address, last_updated_hash=last_updated_hash
-                )
+                if not test:
+                    await bot.send_message(WHALE_TRACKER_CHAT_ID, message)
+                else:
+                    print(message)
+            if not test:
+                for (address, last_updated_hash), _ in non_empty_data:
+                    state.update_tracked_wallet(
+                        address, last_updated_hash=last_updated_hash
+                    )
         except:
             await bot.send_message(
                 WHALE_LOGS_CHAT_ID, traceback.format_exc(), parse_mode="markdown"
